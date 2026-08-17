@@ -387,76 +387,341 @@ function simulateMatch(powerA,powerB){
   return {a,b};
 }
 
+
+function generateRoundRobin(teams){
+  // Como são 21 times (20 clubes + Meu Time), adicionamos uma
+  // "FOLGA" para formar 22 posições. Assim, em cada rodada,
+  // 20 times jogam e 1 time folga.
+  const list=teams.slice();
+  list.push("__BYE__");
+
+  const rounds=[];
+  const n=list.length;
+
+  // Algoritmo do círculo: 21 rodadas de ida.
+  for(let r=0;r<n-1;r++){
+    const games=[];
+
+    for(let i=0;i<n/2;i++){
+      const a=list[i];
+      const b=list[n-1-i];
+
+      if(a!=="__BYE__" && b!=="__BYE__"){
+        // Alterna mandante para não favorecer sempre o primeiro.
+        if((r+i)%2===0)
+          games.push({home:a,away:b});
+        else
+          games.push({home:b,away:a});
+      }
+    }
+
+    rounds.push(games);
+
+    // Mantém a primeira posição fixa e gira as demais.
+    const fixed=list[0];
+    const rest=list.slice(1);
+    rest.unshift(rest.pop());
+    list.splice(0,list.length,fixed,...rest);
+  }
+
+  // Segundo turno: inverte mando.
+  const second=rounds.map(games=>
+    games.map(g=>({
+      home:g.away,
+      away:g.home
+    }))
+  );
+
+  return rounds.concat(second);
+}
+
 function startLeague(){
   const opponents=CLUBS.slice();
+  const teams=[state.teamName,...opponents];
+
   const table={};
-  opponents.forEach(c=>table[c]={p:0,j:0,v:0,e:0,d:0,gp:0,gc:0});
-  table[state.teamName]={p:0,j:0,v:0,e:0,d:0,gp:0,gc:0};
+  teams.forEach(c=>{
+    table[c]={
+      p:0,j:0,v:0,e:0,d:0,
+      gp:0,gc:0
+    };
+  });
+
+  // Artilharia começa com os jogadores do usuário e dos outros clubes.
   const scorers={};
-  Object.values(state.team).forEach(p=>scorers[p.name]=0);
-  state.league={round:0,opponents,table,scorers,teamName:state.teamName};
+
+  Object.values(state.team).forEach(p=>{
+    scorers[p.name]=0;
+  });
+
+  opponents.forEach(club=>{
+    (RAW[club]||[]).forEach(p=>{
+      if(!(p[0] in scorers))
+        scorers[p[0]]=0;
+    });
+  });
+
+  const schedule=generateRoundRobin(teams);
+
+  state.league={
+    round:0,
+    opponents,
+    teams,
+    table,
+    scorers,
+    teamName:state.teamName,
+    schedule:schedule.slice(0,38),
+    allSchedule:schedule
+  };
+
   showScreen("league");
-  if($("leagueTeamName")) $("leagueTeamName").textContent=state.teamName;
-  $("round").textContent="0/38";
+
+  if($("leagueTeamName"))
+    $("leagueTeamName").textContent=state.teamName;
+
+  if($("round"))
+    $("round").textContent="0/38";
+
+  if($("lastResult"))
+    $("lastResult").innerHTML=
+      `<div class="score">🏆 Campeonato iniciado!</div>
+       <div class="goal">Todos os jogos da rodada serão simulados.</div>`;
+
   renderTable();
   renderScorers();
 }
 
 function updateLeague(home,away,hg,ag){
-  const A=state.league.table[home],B=state.league.table[away];
-  A.j++;B.j++;A.gp+=hg;A.gc+=ag;B.gp+=ag;B.gc+=hg;
-  if(hg>ag){A.v++;A.p+=3;B.d++;}
-  else if(hg<ag){B.v++;B.p+=3;A.d++;}
-  else{A.e++;B.e++;A.p++;B.p++;}
+  const A=state.league.table[home];
+  const B=state.league.table[away];
+
+  if(!A || !B)return;
+
+  A.j++;
+  B.j++;
+
+  A.gp+=hg;
+  A.gc+=ag;
+
+  B.gp+=ag;
+  B.gc+=hg;
+
+  if(hg>ag){
+    A.v++;
+    A.p+=3;
+    B.d++;
+  }
+  else if(hg<ag){
+    B.v++;
+    B.p+=3;
+    A.d++;
+  }
+  else{
+    A.e++;
+    B.e++;
+    A.p++;
+    B.p++;
+  }
+}
+
+function goalScorerForTeam(team){
+  if(team===state.league.teamName){
+    const players=Object.values(state.team);
+
+    if(!players.length)return null;
+
+    return players[
+      Math.floor(Math.random()*players.length)
+    ];
+  }
+
+  const players=RAW[team]||[];
+
+  if(!players.length)return null;
+
+  const p=players[
+    Math.floor(Math.random()*players.length)
+  ];
+
+  return {
+    name:p[0],
+    pos:p[1],
+    ovr:p[2],
+    club:team
+  };
+}
+
+function simulateTeamGame(home,away){
+  const homePower=
+    home===state.league.teamName
+      ? teamPower()
+      : opponentPower(home);
+
+  const awayPower=
+    away===state.league.teamName
+      ? teamPower()
+      : opponentPower(away);
+
+  const result=
+    simulateMatch(homePower,awayPower);
+
+  return {
+    home,
+    away,
+    hg:result.a,
+    ag:result.b
+  };
 }
 
 function playRound(){
-  if(state.league.round>=38){alert("O campeonato já terminou.");return;}
-  // Rotação dos adversários com embaralhamento por temporada.
-  if(!state.league.schedule){
-    const shuffled = state.league.opponents.slice();
-    for(let i=shuffled.length-1;i>0;i--){
-      const j=Math.floor(Math.random()*(i+1));
-      [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];
-    }
+  if(!state.league){
+    alert("Primeiro monte e confirme seu time.");
+    return;
+  }
 
-    // 38 rodadas: completa a rotação e embaralha novamente.
-    state.league.schedule=[];
-    for(let r=0;r<38;r++){
-      if(r>0 && r%shuffled.length===0){
-        for(let i=shuffled.length-1;i>0;i--){
-          const j=Math.floor(Math.random()*(i+1));
-          [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];
-        }
-      }
-      state.league.schedule.push(
-        shuffled[r%shuffled.length]
+  if(state.league.round>=38){
+    alert("O campeonato já terminou.");
+    return;
+  }
+
+  const games=
+    state.league.schedule[state.league.round]||[];
+
+  const results=[];
+  let myGame=null;
+
+  // SIMULA TODOS OS JOGOS DA RODADA.
+  // Não apenas o jogo do Meu Time.
+  games.forEach(game=>{
+
+    const result=
+      simulateTeamGame(
+        game.home,
+        game.away
       );
+
+    updateLeague(
+      result.home,
+      result.away,
+      result.hg,
+      result.ag
+    );
+
+    const events=[];
+
+    for(let i=0;i<result.hg;i++){
+      const scorer=
+        goalScorerForTeam(result.home);
+
+      if(scorer){
+        state.league.scorers[scorer.name]=
+          (state.league.scorers[scorer.name]||0)+1;
+
+        events.push(
+          `⚽ ${scorer.name} (${result.home})`
+        );
+      }
+    }
+
+    for(let i=0;i<result.ag;i++){
+      const scorer=
+        goalScorerForTeam(result.away);
+
+      if(scorer){
+        state.league.scorers[scorer.name]=
+          (state.league.scorers[scorer.name]||0)+1;
+
+        events.push(
+          `⚽ ${scorer.name} (${result.away})`
+        );
+      }
+    }
+
+    const row={
+      ...result,
+      events
+    };
+
+    results.push(row);
+
+    if(
+      result.home===state.league.teamName ||
+      result.away===state.league.teamName
+    ){
+      myGame=row;
+    }
+  });
+
+  state.league.round++;
+
+  if($("round"))
+    $("round").textContent=
+      `${state.league.round}/38`;
+
+  // Mostra primeiro o jogo do usuário e depois
+  // todos os outros resultados da rodada.
+  let html=
+    `<div class="score">
+      🏆 RODADA ${state.league.round}
+    </div>`;
+
+  if(myGame){
+    html+=`
+      <div class="score">
+        ⭐ ${myGame.home}
+        ${myGame.hg} × ${myGame.ag}
+        ${myGame.away}
+      </div>
+    `;
+
+    if(myGame.events.length){
+      html+=myGame.events
+        .map(e=>`<div class="goal">${e}</div>`)
+        .join("");
     }
   }
 
-  const opponent =
-    state.league.schedule[state.league.round];
-  let balance=(teamPower()-opponentPower(opponent))/15+(Math.random()-.5)*1.4;
-  let myGoals=randomGoals(), oppGoals=randomGoals();
-  if(balance>.5&&Math.random()<.7)myGoals=Math.max(myGoals,oppGoals+1);
-  if(balance<-.5&&Math.random()<.7)oppGoals=Math.max(oppGoals,myGoals+1);
-  if(Math.abs(balance)<.2&&Math.random()<.3)oppGoals=myGoals;
-  updateLeague(state.league.teamName,opponent,myGoals,oppGoals);
+  html+=`
+    <hr>
+    <div style="font-weight:bold;margin:8px 0">
+      📋 Todos os jogos da rodada
+    </div>
+  `;
 
-  const events=[];
-  for(let i=0;i<myGoals;i++){
-    const ps=Object.values(state.team),sc=ps[Math.floor(Math.random()*ps.length)];
-    state.league.scorers[sc.name]++; events.push(`⚽ ${sc.name}`);
+  results.forEach(r=>{
+    html+=`
+      <div class="goal">
+        ${r.home} ${r.hg} × ${r.ag} ${r.away}
+      </div>
+    `;
+  });
+
+  // Se houver uma folga, informa.
+  const playing=new Set();
+
+  results.forEach(r=>{
+    playing.add(r.home);
+    playing.add(r.away);
+  });
+
+  const bye=
+    state.league.teams.find(
+      t=>!playing.has(t)
+    );
+
+  if(bye){
+    html+=`
+      <div class="goal">
+        💤 ${bye} ficou de folga nesta rodada.
+      </div>
+    `;
   }
-  for(let i=0;i<oppGoals;i++){
-    const ps=RAW[opponent],sc=ps[Math.floor(Math.random()*ps.length)];
-    events.push(`🔴 ${sc[0]}`);
-  }
-  state.league.round++;
-  $("round").textContent=`${state.league.round}/38`;
-  $("lastResult").innerHTML=`<div class="score">Meu Time ${myGoals} × ${oppGoals} ${opponent}</div>${events.map(e=>`<div class="goal">${e}</div>`).join("")}`;
-  renderTable();renderScorers();
+
+  if($("lastResult"))
+    $("lastResult").innerHTML=html;
+
+  renderTable();
+  renderScorers();
 }
 
 function simulateAll(){
@@ -470,11 +735,20 @@ function simulateAll(){
     return;
   }
 
-  const button=document.querySelector('button[onclick="simulateAll()"]');
-  if(button) button.disabled=true;
+  const button=
+    document.querySelector(
+      'button[onclick="simulateAll()"]'
+    );
+
+  if(button)
+    button.disabled=true;
 
   try{
-    while(state.league.round<38){
+
+    // Cada chamada simula TODOS os jogos daquela rodada.
+    while(
+      state.league.round<38
+    ){
       playRound();
     }
 
@@ -482,19 +756,40 @@ function simulateAll(){
     renderScorers();
 
     if($("round"))
-      $("round").textContent=`${state.league.round}/38`;
+      $("round").textContent=
+        `${state.league.round}/38`;
 
     if($("lastResult")){
       $("lastResult").insertAdjacentHTML(
         "afterbegin",
-        '<div style="text-align:center;font-weight:bold;margin-bottom:8px">🏁 Campeonato simulado até o fim!</div>'
+        `<div style="
+          text-align:center;
+          font-weight:bold;
+          margin-bottom:8px
+        ">
+          🏁 Campeonato simulado até o fim!
+          <br>
+          Todos os jogos das 38 rodadas foram simulados.
+        </div>`
       );
     }
+
   }catch(error){
-    console.error("Erro ao simular campeonato:",error);
-    alert("Ocorreu um erro ao simular. O código foi corrigido para evitar o problema.");
+
+    console.error(
+      "Erro ao simular campeonato:",
+      error
+    );
+
+    alert(
+      "Ocorreu um erro ao simular o campeonato. Veja o console para detalhes."
+    );
+
   }finally{
-    if(button) button.disabled=false;
+
+    if(button)
+      button.disabled=false;
+
   }
 }
 
