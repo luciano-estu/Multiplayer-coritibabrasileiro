@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>7A0 - Monte seu time</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container">
+
+    <section id="home" class="screen">
+      <h1>⚽ 7A0</h1>
+      <p class="subtitle">Sorteie clubes, monte seu time e dispute o campeonato.</p>
+      <div class="menu">
+        <button onclick="startSolo()">🎮 Modo Solo</button>
+        <button onclick="openFriends()">👥 Jogar com Amigos</button>
+      </div>
+    </section>
+
+    <section id="friends" class="screen hidden">
+      <div class="card room-box">
+        <label for="friendTeamName"><b>Nome do meu time:</b></label>
+        <input id="friendTeamName" maxlength="24" value="Meu Time"
+               placeholder="Digite o nome do seu time"
+               style="width:100%;margin:8px 0 14px;">
+        <h2>👥 Modo Amigos</h2>
+        <p class="subtitle">Crie uma sala e envie o código para seu amigo.</p>
+
+        <div class="room-actions">
+          <label><b>Jogadores na sala:</b></label>
+          <select id="roomSize">
+            <option value="2">2 pessoas</option>
+            <option value="4">4 pessoas</option>
+            <option value="6">6 pessoas</option>
+            <option value="8">8 pessoas</option>
+            <option value="10">10 pessoas</option>
+          </select>
+          <button onclick="createRoom()">🏠 Criar sala</button>
+          <input id="roomCode" placeholder="Código da sala">
+          <button onclick="joinRoom()">🚪 Entrar</button>
+        </div>
+
+        <p id="roomStatus">Aguardando conexão...</p>
+        <div id="roomPlayers" class="card">Nenhum jogador conectado.</div>
+        <button id="startRoomButton" onclick="hostStartDraft()" disabled>🎲 Começar montagem dos times</button>
+
+        <button class="btn-secondary" onclick="showScreen('home')">
+          Voltar
+        </button>
+      </div>
+    </section>
+
+    <section id="build" class="screen hidden">
+      <h1>🏆 Monte seu time</h1>
+
+      <div class="card">
+        <label for="teamName"><b>Nome do meu time:</b></label>
+        <input id="teamName" maxlength="24" value="Meu Time"
+               placeholder="Digite o nome do seu time"
+               style="width:100%;margin:8px 0 14px;">
+
+        <div class="controls">
+          <label for="formation"><b>Formação:</b></label>
+          <select id="formation"></select>
+          <button id="drawButton" onclick="drawClub()">🎲 Sortear clube</button>
+          <button id="skipButton" onclick="skipClub()">⏭️ Pular clube (3)</button>
+        </div>
+
+        <div id="clubBox">Nenhum clube sorteado</div>
+        <p id="instruction">Primeiro sorteie um clube.</p>
+        <p id="placementInfo">
+          Depois de escolher um jogador, toque na posição correta.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>👤 Jogadores</h2>
+        <div id="players">Sorteie um clube.</div>
+      </div>
+
+      <div class="card">
+        <h2>⚽ Campo</h2>
+        <div id="field"></div>
+
+        <div class="stats">
+          <div class="stat">
+            Jogadores
+            <strong id="playerCount">0/11</strong>
+          </div>
+          <div class="stat">
+            OVR
+            <strong id="teamOvr">0</strong>
+          </div>
+        </div>
+
+        <button id="readyButton" onclick="confirmTeam()" disabled>
+          ✅ Confirmar time
+        </button>
+      </div>
+
+      <button class="btn-secondary" onclick="showScreen('home')">
+        Voltar
+      </button>
+    </section>
+
+    <section id="match" class="screen hidden">
+      <div class="card">
+        <h2>⚔️ Campeonato entre amigos</h2>
+        <p id="friendStatus">Aguardando os times...</p>
+        <div id="friendPlayers"></div>
+        <button id="friendPlay" onclick="playFriendMatch()" disabled>⚽ Jogar próxima rodada</button>
+        <div id="friendResult" class="card"></div>
+        <div class="card">
+          <h3>📊 Tabela da sala</h3>
+          <div id="friendTable"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="league" class="screen hidden">
+      <h1>🏆 Campeonato — <span id="leagueTeamName">Meu Time</span></h1>
+
+      <div class="card">
+        <h2>Rodada <span id="round">0/38</span></h2>
+
+        <button onclick="playRound()">▶️ Jogar próxima rodada</button>
+        <button class="btn-blue" onclick="simulateAll()">⏩ Simular campeonato</button>
+
+        <div id="lastResult" class="card">
+          Nenhuma partida jogada.
+        </div>
+      </div>
+
+      <div class="league-grid">
+        <div class="card">
+          <h2>📊 Classificação</h2>
+          <div id="table"></div>
+        </div>
+
+        <div class="card">
+          <h2>⚽ Artilharia</h2>
+          <div id="scorers"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Conexão P2P para o modo amigos -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
